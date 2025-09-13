@@ -1,0 +1,55 @@
+enum CategoryGroup {
+  a // Nhóm ngành A - nhóm 1 (20%)
+  b // Nhóm ngành B - nhóm 2 (30%)
+  c // Nhóm ngành C - nhóm 3 (50%)
+}
+
+model Category {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietCategoryId Int?     @unique // ID danh mục từ KiotViet
+  kiotVietParentId   Int? // ID danh mục cha từ KiotViet
+  hasChild           Boolean? // Có danh mục con (từ KiotViet)
+
+  // Thông tin cơ bản
+  name        String // Tên danh mục
+  slug        String  @unique // URL thân thiện
+  description String? // Mô tả
+  image       String? // Hình ảnh
+  icon        String? // Biểu tượng
+  color       String? // Màu sắc
+  isActive    Boolean @default(true) // Trạng thái hoạt động
+  sortOrder   Int     @default(0) // Thứ tự sắp xếp
+
+  // Thông tin về danh mục
+  source OriginSource  @default(acta) // Nguồn gốc
+  group  CategoryGroup @default(c) // Nhóm danh mục
+  isRoot Boolean       @default(false) // Là danh mục gốc
+
+  // Hierarchy - Phân cấp danh mục
+  parentId String?
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+
+  // Relationships - Các mối quan hệ
+  products         Product[] // Danh sách sản phẩm
+  featuredProducts Product[] @relation("FeaturedCategories") // Danh sách sản phẩm nổi bật
+
+  invoiceDetails InvoiceDetail[]
+
+  // Affiliate commissions
+  affiliateCommissions AffiliateCommission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([slug])
+  @@index([kiotVietCategoryId])
+  @@index([kiotVietParentId])
+  @@index([hasChild])
+  @@index([parentId])
+  @@index([isActive])
+  @@map("categories")
+}

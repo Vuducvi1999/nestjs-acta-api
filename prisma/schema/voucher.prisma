@@ -1,0 +1,108 @@
+enum VoucherStatus {
+  unused
+  released
+  used
+  cancelled
+  expired
+}
+
+enum VoucherSellType {
+  sell
+  gift
+}
+
+enum VoucherPartnerType {
+  customer
+  business
+  employee
+  delivery
+  collaborator
+  user
+}
+
+model VoucherCampaign {
+  id   String @id @default(cuid())
+  code String @unique // Mã voucher
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietVoucherCampaignId        Int?  @unique // ID campaign voucher từ KiotViet
+  kiotVietVoucherPrereqCategoryIds Int[] // ID danh mục yêu cầu từ KiotViet
+  kiotVietVoucherPrereqProductIds  Int[] // ID sản phẩm yêu cầu từ KiotViet
+
+  // Thông tin voucher
+  name                     String // Tên voucher
+  description              String? // Mô tả
+  isActive                 Boolean      @default(true) // Đang hoạt động
+  startDate                DateTime // Ngày bắt đầu
+  endDate                  DateTime // Ngày kết thúc
+  expireTime               Int // Thời gian hết hạn
+  quantity                 Int // Số lượng
+  discount                 Decimal      @db.Decimal(15, 2) // Giá giảm
+  discountRatio            Decimal      @db.Decimal(15, 2) // Tỷ lệ giảm giá
+  useVoucherCombineInvoice Boolean      @default(false) // Sử dụng voucher kết hợp hóa đơn
+  isGlobal                 Boolean      @default(false) // Áp dụng toàn cục
+  forAllCusGroup           Boolean      @default(false) // Cho tất cả nhóm khách hàng
+  forAllUser               Boolean      @default(false) // Cho tất cả người dùng
+  source                   OriginSource @default(acta) // Nguồn gốc
+
+  prereqCategoryIds String[] // ID danh mục yêu cầu
+  prereqProductIds  String[] // ID sản phẩm yêu cầu
+  prereqPrice       Decimal  @db.Decimal(15, 2) // Giá yêu cầu
+
+  // Warehouse - Kho hàng
+  warehouses Warehouse[]
+
+  // Users - Người dùng
+  users User[] @relation("UserVoucherCampaigns")
+
+  // Vouchers - Voucher
+  vouchers Voucher[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([id, code])
+  @@index([kiotVietVoucherCampaignId])
+  @@index([isActive])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([expireTime])
+  @@index([quantity])
+  @@index([source])
+  @@map("voucher_campaigns")
+}
+
+model Voucher {
+  id   String @id @default(cuid())
+  code String @unique // Mã voucher
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietVoucherId         Int? @unique // ID batch voucher từ KiotViet
+  kiotVietVoucherCampaignId Int? // ID campaign voucher từ KiotViet
+
+  status        VoucherStatus   @default(unused) // Trạng thái voucher
+  sellType      VoucherSellType @default(sell) // Loại bán voucher
+  discount      Decimal         @db.Decimal(15, 2) // Giá voucher (điều chỉnh thủ công)
+  discountRatio Decimal         @db.Decimal(15, 2) // Tỷ lệ giảm giá
+  releaseDate   DateTime // Ngày phát hành
+  expireDate    DateTime // Ngày hết hạn
+  usedDate      DateTime? // Ngày sử dụng
+  source        OriginSource    @default(acta) // Nguồn gốc
+
+  // Voucher campaign - Voucher campaign
+  voucherCampaignId String
+  voucherCampaign   VoucherCampaign @relation(fields: [voucherCampaignId], references: [id])
+
+  // Partner - Đối tác
+  partnerType VoucherPartnerType
+  partnerId   String
+  partnerName String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([voucherCampaignId])
+  @@index([partnerId])
+  @@index([source])
+  @@map("vouchers")
+}

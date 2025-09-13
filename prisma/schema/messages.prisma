@@ -1,0 +1,82 @@
+// Message and conversation system models
+model Conversation {
+  id            String    @id @default(uuid())
+  name          String?
+  imageUrl      String?
+  isGroup       Boolean   @default(false)
+  isArchived    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastMessageAt DateTime?
+
+  // Members
+  members ConversationMember[]
+
+  // Messages
+  messages Message[]
+
+  // Pinned message (optional, 1:1)
+  pinnedMessageId String?  @unique
+  pinnedMessage   Message? @relation("PinnedMessage", fields: [pinnedMessageId], references: [id], onDelete: SetNull)
+
+  // Creator
+  createdById String
+  createdBy   User   @relation("CreatedConversations", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([isGroup])
+  @@map("conversations")
+}
+
+model ConversationMember {
+  id        String     @id @default(uuid())
+  role      MemberRole @default(MEMBER) // MEMBER | ADMIN
+  joinedAt  DateTime   @default(now())
+  isMuted   Boolean    @default(false)
+  isRemoved Boolean    @default(false)
+  isTyping  Boolean    @default(false)
+  isHidden  Boolean    @default(false)
+
+  conversationId String
+  userId         String
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@map("conversation_members")
+}
+
+enum MemberRole {
+  MEMBER
+  ADMIN
+  OWNER
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  content   String?
+  imageUrls String[] @default([]) // Changed from imageUrl to imageUrls array
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Mentioned users
+  mentions User[] @relation("MentionedInMessages")
+
+  // Attachments (many-to-many)
+  attachments Attachment[] @relation("MessageAttachments")
+
+  // Seen logic
+  seenBy User[] @relation("SeenMessages")
+
+  // Pinned message (optional, 1:1)
+  pinnedInConversation Conversation? @relation("PinnedMessage")
+
+  // Relations  
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation("MessagesSent", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}

@@ -1,0 +1,142 @@
+enum CommissionStatus {
+  pending // Chờ xử lý
+  calculated // Đã tính toán
+  paid // Đã thanh toán
+  cancelled // Đã hủy
+}
+
+enum CommissionLevel {
+  F0 // Người giới thiệu gián tiếp (20%)
+  F1 // Người giới thiệu trực tiếp (30%) 
+  F2 // Người mua hàng (50%)
+}
+
+model AffiliateCommission {
+  id String @id @default(cuid())
+
+  // Thông tin đơn hàng và sản phẩm
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  orderDetailId String?
+  orderDetail   OrderDetail? @relation(fields: [orderDetailId], references: [id], onDelete: SetNull)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Thông tin người hưởng hoa hồng
+  beneficiaryId String
+  beneficiary   User   @relation("UserAffiliateCommissions", fields: [beneficiaryId], references: [id], onDelete: Cascade)
+
+  // Thông tin hoa hồng
+  commissionLevel  CommissionLevel // F0, F1, F2
+  commissionRate   Decimal         @db.Decimal(5, 4) // Tỷ lệ hoa hồng (0.20, 0.30, 0.50)
+  baseAmount       Decimal         @db.Decimal(15, 2) // Số tiền cơ sở để tính hoa hồng
+  quantity         Int // Số lượng sản phẩm
+  commissionAmount Decimal         @db.Decimal(15, 2) // Số tiền hoa hồng thực tế
+
+  // Thông tin ngành hàng
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  // Trạng thái hoa hồng
+  status CommissionStatus @default(pending)
+
+  // Thông tin thanh toán
+  paidAt     DateTime?
+  paidBy     String? // ID người thanh toán
+  paidByUser User?     @relation("UserPaidCommissions", fields: [paidBy], references: [id])
+
+  // Ghi chú
+  notes String?
+
+  // Commission Summary Relations
+  summaryAsF2 CommissionSummary? @relation("F2Commission")
+  summaryAsF1 CommissionSummary? @relation("F1Commission") 
+  summaryAsF0 CommissionSummary? @relation("F0Commission")
+
+  // Timestamps
+  calculatedAt DateTime @default(now()) // Thời điểm tính toán hoa hồng
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Indexes
+  @@index([orderId])
+  @@index([orderDetailId])
+  @@index([productId])
+  @@index([beneficiaryId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([commissionLevel])
+  @@index([calculatedAt])
+  @@index([paidAt])
+  @@map("affiliate_commissions")
+}
+
+// Model để lưu trữ lịch sử tính toán hoa hồng
+model AffiliateCommissionLog {
+  id String @id @default(cuid())
+
+  // Thông tin đơn hàng
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  // Thông tin tính toán
+  totalCommissionAmount Decimal @db.Decimal(15, 2) // Tổng số tiền hoa hồng
+  commissionCount       Int // Số lượng commission được tạo
+  calculationStatus     String // Trạng thái tính toán
+
+  // Thông tin xử lý
+  processedAt     DateTime @default(now())
+  processedBy     String? // ID người xử lý
+  processedByUser User?    @relation("UserProcessedCommissions", fields: [processedBy], references: [id])
+
+  // Ghi chú
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([processedAt])
+  @@index([calculationStatus])
+  @@map("affiliate_commission_logs")
+}
+
+model CommissionSummary {
+  id String @id @default(cuid())
+
+  // Link to order detail
+  orderDetailId String @unique
+  orderDetail   OrderDetail @relation(fields: [orderDetailId], references: [id])
+
+  // Financial breakdown
+  totalAmount       Decimal @db.Decimal(15, 2) // Tổng tiền từ orderDetail (price * quantity)
+  commissionPaid    Decimal @db.Decimal(15, 2) // Số tiền đã trả commission
+  platformCut       Decimal @db.Decimal(15, 2) // Số tiền sàn giữ lại
+  remainingAmount   Decimal @db.Decimal(15, 2) // Số tiền dôi ra (nếu không có đủ referrer)
+
+  // Commission distribution
+  f2CommissionId String? @unique // Customer commission
+  f2Commission   AffiliateCommission? @relation("F2Commission", fields: [f2CommissionId], references: [id])
+
+  f1CommissionId String? @unique // Direct referrer commission
+  f1Commission   AffiliateCommission? @relation("F1Commission", fields: [f1CommissionId], references: [id])
+
+  f0CommissionId String? @unique // Indirect referrer commission  
+  f0Commission   AffiliateCommission? @relation("F0Commission", fields: [f0CommissionId], references: [id])
+
+  // Metadata
+  categoryGroupRate Decimal @db.Decimal(5, 4) // Category commission rate used (e.g., 0.5000 for 50%)
+  calculatedAt      DateTime @default(now())
+  notes             String? // Additional notes for accounting
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderDetailId])
+  @@index([calculatedAt])
+  @@index([categoryGroupRate])
+  @@map("commission_summaries")
+}
+

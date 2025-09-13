@@ -1,0 +1,20 @@
+model PartnerDelivery {
+  id   String @id @default(cuid())
+  code String @unique // Mã đối tác vận chuyển
+
+  name          String // Tên đối tác vận chuyển
+  address       String // Địa chỉ đối tác vận chuyển
+  contactNumber String // Số điện thoại đối tác vận chuyển
+  email         String // Email đối tác vận chuyển
+
+  // Đơn hàng phụ trách
+  deliveries        OrderDelivery[]
+  invoiceDeliveries InvoiceDelivery[]
+
+  @@index([code])
+  @@index([name])
+  @@index([address])
+  @@index([contactNumber])
+  @@index([email])
+  @@map("partner_deliveries")
+}

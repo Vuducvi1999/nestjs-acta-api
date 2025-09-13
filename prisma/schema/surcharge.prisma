@@ -1,0 +1,51 @@
+model Surcharge {
+  id   String @id @default(cuid())
+  code String @unique // Mã thu khác
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietSurchargeId   Int?    @unique // ID thu khác từ KiotViet
+  kiotVietSurchargeCode String? // Mã thu khác từ KiotViet
+
+  // Thông tin thu khác
+  name       String // Tên thu khác
+  value      Decimal?     @db.Decimal(15, 2) // Giá trị thu khác
+  valueRatio Decimal?     @db.Decimal(15, 2) // Tỷ lệ thu khác
+  isActive   Boolean      @default(true) // Trạng thái hoạt động
+  source     OriginSource @default(acta) // Nguồn gốc
+
+  invoiceOrderSurcharges InvoiceOrderSurcharge[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kiotVietSurchargeId])
+  @@map("surcharges")
+}
+
+model InvoiceOrderSurcharge {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietSurchargeId Int? // ID thu khác từ KiotViet
+
+  surValue Decimal?     @db.Decimal(15, 2) // Giá trị thu khác
+  price    Decimal?     @db.Decimal(15, 2) // Giá trị thu khác
+  source   OriginSource @default(acta) // Nguồn gốc
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  surchargeId String?    @unique
+  surcharge   Surcharge? @relation(fields: [surchargeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([orderId])
+  @@index([surchargeId])
+  @@map("invoice_order_surcharges")
+}

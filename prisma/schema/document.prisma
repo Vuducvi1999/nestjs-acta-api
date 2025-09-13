@@ -1,0 +1,169 @@
+model DocumentCategory {
+  id String @id @default(uuid())
+
+  name        String  @unique
+  description String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  documents Document[]
+
+  @@map("document_category")
+}
+
+model Document {
+  id String @id @default(uuid())
+
+  title       String
+  description String?
+  slug        String?
+  downloads   Int     @default(0)
+  isPublished Boolean @default(true)
+
+  thumbnailId String?     @unique // For image
+  thumbnail   Attachment? @relation("DocumentThumbnail", fields: [thumbnailId], references: [id])
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime? // Soft delete
+  publishedAt DateTime?
+
+  // Relations
+  categoryId String
+  category   DocumentCategory @relation(fields: [categoryId], references: [id])
+
+  uploaderId String
+  uploader   User   @relation("UserUploads", fields: [uploaderId], references: [id])
+
+  chapters      DocumentChapter[]
+  userDocuments UserDocument[]
+  comments      DocumentComment[]
+  attachments   Attachment[]      @relation("DocumentAttachments")
+
+  @@index([title, categoryId, slug])
+  @@map("documents")
+}
+
+model DocumentChapter {
+  id String @id @default(uuid())
+
+  title       String
+  content     String?
+  position    Int
+  views       Int     @default(0)
+  videoUrl    String? @db.Text // For video content
+  isPublished Boolean @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  publishedAt DateTime?
+
+  muxData MuxData?
+
+  // Relations
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  userProgress UserDocumentProgress[]
+
+  @@map("document_chapters")
+}
+
+model MuxData {
+  id String @id @default(uuid())
+
+  assetId    String  @unique
+  playbackId String? @unique
+
+  documentChapterId String?          @unique
+  documentChapter   DocumentChapter? @relation(fields: [documentChapterId], references: [id], onDelete: Cascade)
+
+  postId String?
+  post   Post?   @relation("PostMuxData", fields: [postId], references: [id], onDelete: Cascade)
+
+  newsItemId String?
+  newsItem   NewsItem? @relation("NewsMuxData", fields: [newsItemId], references: [id], onDelete: Cascade)
+
+  @@map("mux_data")
+}
+
+model UserDocument {
+  id String @id @default(uuid())
+
+  isFollowing Boolean @default(false)
+  isFavorite  Boolean @default(false)
+  lastViewed  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("UserDocuments", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentId])
+  @@map("user_documents")
+}
+
+model UserDocumentProgress {
+  id String @id @default(uuid())
+
+  isCompleted Boolean @default(false)
+
+  // Relations
+  userId String
+  user   User   @relation("UserDocumentProgresses", fields: [userId], references: [id], onDelete: Cascade)
+
+  documentChapterId String
+  documentChapter   DocumentChapter @relation(fields: [documentChapterId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, documentChapterId])
+  @@index([userId])
+  @@index([documentChapterId])
+  @@map("user_document_progresses")
+}
+
+model DocumentComment {
+  id String @id @default(uuid())
+
+  content String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  userId String
+  user   User   @relation("UserDocumentComments", fields: [userId], references: [id], onDelete: Cascade)
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  parentId String?
+  parent   DocumentComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+
+  replies DocumentComment[]     @relation("CommentReplies")
+  likes   DocumentCommentLike[]
+
+  @@map("document_comments")
+}
+
+model DocumentCommentLike {
+  id        String          @id @default(uuid())
+  commentId String
+  userId    String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  comment   DocumentComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@map("document_comment_likes")
+}

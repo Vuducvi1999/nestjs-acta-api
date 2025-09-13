@@ -1,0 +1,30 @@
+model Cart {
+  id String @id @default(cuid())
+
+  // Relationships - Các mối quan hệ
+  userId String     @unique // Mỗi user chỉ có 1 giỏ hàng
+  user   User       @relation(fields: [userId], references: [id])
+  items  CartItem[] // Các sản phẩm trong giỏ hàng
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("carts")
+}
+
+model CartItem {
+  id String @id @default(cuid())
+
+  quantity Int @default(1) // Số lượng (mặc định 1)
+
+  cartId String
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cart_items")
+}

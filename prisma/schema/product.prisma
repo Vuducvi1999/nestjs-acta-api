@@ -1,0 +1,642 @@
+enum ProductType {
+  product
+  service
+  combo
+}
+
+enum WarrantyTimeType {
+  day
+  month
+  year
+}
+
+enum WarrantyType {
+  none
+  electronic
+  manual_ticket
+  exchange_only
+  return_only
+  exchange_and_return
+  manufacturer_warranty
+  store_warranty
+  lifetime
+  service_included
+}
+
+enum TaxType {
+  zero
+  five
+  eight
+  ten
+  kct
+  kkknt
+  khac
+}
+
+enum PriceBookType {
+  product
+  warehouse
+  customerGroup
+  user
+}
+
+model Product {
+  id   String @id @default(cuid())
+  code String @unique // Mã sản phẩm
+
+  // Sản phẩm chính
+  masterCode        String? // Mã sản phẩm chính
+  masterProductId   String? // Mã sản phẩm chính
+  masterProduct     Product?  @relation("MasterProduct", fields: [masterProductId], references: [id])
+  // One-to-many relationships - Quan hệ một-nhiều
+  componentProducts Product[] @relation("MasterProduct")
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietProductId       Int?      @unique // ID sản phẩm từ KiotViet
+  kiotVietModifiedDate    DateTime? // Ngày sửa đổi từ KiotViet
+  kiotVietCategoryId      Int? // ID danh mục từ KiotViet
+  kiotVietBusinessId      Int? // ID thương hiệu từ KiotViet
+  masterKiotVietProductId Int? // ID sản phẩm chính
+  masterKiotVietUnitId    Int? // ID đơn vị chính
+  kiotVietRetailerId      Int? // NEW: retailerId từ KV
+  hasVariants             Boolean   @default(false) // NEW: phản ánh `hasVariants` từ KV
+
+  // Thông tin về sản phẩm
+  name        String // Tên sản phẩm
+  barCode     String?
+  slug        String       @unique // URL thân thiện
+  description String? // Mô tả chi tiết
+  type        ProductType // Loại sản phẩm
+  weight      Float? // Trọng lượng
+  dimensions  String? // Kích thước (LxWxH cm)
+  source      OriginSource @default(acta) // Nguồn gốc
+
+  // Order Template - Template đặt hàng
+  orderTemplateId String?               @unique
+  orderTemplate   ProductOrderTemplate?
+
+  // Pricing - Giá cả
+  price     Decimal @db.Decimal(10, 2) // Giá bán trước thuế
+  basePrice Decimal @db.Decimal(10, 2) // Giá vốn
+
+  // Inventory - Kho hàng
+  minQuantity Int                @default(1) // Số lượng tối thiểu cần để thực hiện giao dịch
+  maxQuantity Int? // Số lượng tối đa cần để thực hiện giao dịch
+  inventories ProductInventory[]
+
+  // Media
+  thumbnail String // Hình ảnh thu nhỏ
+  images    ProductImage[]
+
+  // Ratings & Reviews - Đánh giá và nhận xét
+  ratings Rating[]
+  reviews Review[]
+
+  // Status - Trạng thái
+  isActive   Boolean @default(true) // Đang hoạt động
+  allowsSale Boolean @default(false) // Cho phép bán hàng
+
+  // Features - Tính năng
+  specifications Json? // Thông số kỹ thuật (JSON)
+
+  // Shipping & Warranty - Vận chuyển và bảo hành
+  freeShipping Boolean @default(false) // Miễn phí vận chuyển
+
+  // SEO - Tối ưu hóa công cụ tìm kiếm
+  metaTitle       String? // Tiêu đề SEO
+  metaDescription String? // Mô tả SEO
+  keywords        String[] // Từ khóa
+
+  isLotSerialControl   Boolean @default(false) // Kiểm soát lot/serial
+  isBatchExpireControl Boolean @default(false) // Kiểm soát hạn sử dụng
+  isRewardPoint        Boolean @default(false) // Có điểm thưởng
+
+  // Content from KV detail
+  descriptionHtml           String? @db.Text    // NEW: HTML thô từ KV
+  descriptionHtmlSanitized  String? @db.Text    // NEW: HTML đã sanitize
+  sourceCreatedAt           DateTime?           // NEW: map createdDate KV
+  sourceUpdatedAt           DateTime?           // NEW: map modifiedDate KV
+  sourceRaw                 Json?               // NEW: lưu full payload KV
+
+  // Tax information - Thông tin thuế
+  taxType       TaxType? // Loại thuế
+  taxRate       String? // Tỷ lệ thuế
+  taxRateDirect Float? // Tỷ lệ thuế trực tiếp
+  taxName       String? // Tên thuế
+
+  // Relationships - Các mối quan hệ
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  businessId String // = tradeMark
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  // Many-to-many relationships - Quan hệ nhiều-nhiều
+  featuredIn Category[] @relation("FeaturedCategories")
+
+  // Order items - Đơn hàng
+  orderDetails OrderDetail[]
+
+  // Cart items - Giỏ hàng
+  cartItems CartItem[]
+
+  // Affiliate commissions
+  affiliateCommissions AffiliateCommission[]
+
+  // Wishlist items - Danh sách yêu thích
+  wishlistItems WishlistItem[]
+
+  // Product variants - Biến thể sản phẩm
+  variants ProductVariant[]
+
+  // Attributes - Thuộc tính
+  attributes ProductAttribute[]
+
+  // Units - Đơn vị sản phẩm
+  unit            String
+  conversionValue Decimal @db.Decimal(10, 2)
+
+  masterUnitId String?
+  masterUnit   ProductUnit?  @relation("MasterUnitOfProduct", fields: [masterUnitId], references: [id])
+  units        ProductUnit[]
+
+  // Price books - Bảng giá (N-N via join)
+  priceBooks ProductPriceBook[]
+
+  // Formulas - Công thức (sản phẩm) thành phần
+  formulas ProductFormula[]
+
+  // Serials - Serial
+  serials ProductSerial[]
+
+  // Batch expires - Lô hàng
+  batchExpires ProductBatchExpire[]
+
+  // Warranties - Bảo hành
+  warranties ProductWarranty[]
+
+  // Shelves - Vị trí
+  shelves ProductShelf[]
+
+  // Invoice details - Chi tiết hóa đơn
+  invoiceDetails InvoiceDetail[]
+
+  // Purchase order details - Chi tiết đơn nhập hàng
+  purchaseOrderDetails PurchaseOrderDetail[]
+
+  // Return order details - Chi tiết đơn trả hàng
+  returnOrderDetails ReturnOrderDetail[]
+
+  // Transfer details - Chi tiết đơn chuyển kho
+  transferDetails TransferDetail[]
+
+  // Order business details - Chi tiết đơn nhập hàng
+  orderBusinessDetails OrderBusinessDetail[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([businessId])
+  @@index([name])
+  @@index([slug])
+  @@index([isActive])
+  @@map("products")
+}
+
+model ProductOrderTemplate {
+  id String @id @default(cuid())
+
+  name        String // Tên template
+  description String? // Mô tả template
+  isActive    Boolean @default(true) // Trạng thái template
+
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([name])
+  @@index([isActive])
+  @@map("product_order_templates")
+}
+
+model ProductImage {
+  id String @id @default(cuid())
+
+  url       String // URL hình ảnh
+  sortOrder Int     @default(0) // Thứ tự sắp xếp
+  isMain    Boolean @default(false) // Hình ảnh chính
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([url])
+  @@index([sortOrder])
+  @@index([isMain])
+  @@map("product_images")
+}
+
+model ProductVariant {
+  id String @id @default(cuid())
+
+  name            String // Tên biến thể (VD: "Kích thước", "Màu sắc")
+  value           String // Giá trị biến thể (VD: "Lớn", "Đỏ")
+  additionalPrice Decimal? @db.Decimal(10, 2) // Giá bổ sung cho biến thể này
+  stock           Int      @default(0) // Số lượng tồn kho
+  sku             String   @unique // Mã SKU riêng
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, name, value]) // tránh trùng biến thể cùng tên/giá trị trên 1 sản phẩm
+  @@index([productId])
+  @@index([name])
+  @@index([value])
+  @@index([stock])
+  @@index([sku])
+  @@map("product_variants")
+}
+
+model ProductInventory {
+  id String @id @default(cuid())
+
+  // KiotViet fields - Các trường từ KiotViet
+  kiotVietWarehouseId Int? // ID tồn kho từ KiotViet
+
+  cost           Decimal      @db.Decimal(15, 2) // Giá vốn
+  onHand         Int          @default(0) // Tồn kho thực tế
+  onOrder        Int          @default(0) // Đang đặt hàng
+  reserved       Int          @default(0) // Đã đặt chỗ
+  actualReserved Int          @default(0) // Thực tế đã đặt chỗ
+  minQuantity     Int          @default(0) // Số lượng tối thiểu
+  maxQuantity     Int? // Số lượng tối đa
+  source         OriginSource @default(acta) // Nguồn gốc
+
+  // Store/Warehouse information - Thông tin cửa hàng/kho hàng
+  warehouseId String // ID kho hàng
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([warehouseId, productId]) // mỗi kho–sản phẩm 1 dòng tồn
+  @@index([kiotVietWarehouseId])
+  @@index([productId])
+  @@index([cost])
+  @@index([onHand])
+  @@index([onOrder])
+  @@index([reserved])
+  @@index([actualReserved])
+  @@index([minQuantity])
+  @@index([maxQuantity])
+  @@map("product_inventories")
+}
+
+model Review {
+  id String @id @default(cuid())
+
+  rating     Int // Điểm đánh giá (1-5 sao)
+  title      String? // Tiêu đề đánh giá
+  content    String // Nội dung đánh giá
+  isVerified Boolean @default(false) // Đã xác minh mua hàng
+  isHelpful  Int     @default(0) // Số người thấy hữu ích
+
+  // Images - Hình ảnh đánh giá
+  images String[] // Danh sách URL hình ảnh
+
+  userId String?
+  user   User?   @relation("UserProductReviews", fields: [userId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reviews")
+}
+
+model ProductAttribute {
+  id String @id @default(cuid())
+
+  // KiotViet integration fields
+  kiotVietAttributeId Int? @unique // ID thuộc tính từ KiotViet
+
+  attributeName  String // Tên thuộc tính
+  attributeValue String // Giá trị thuộc tính
+  source         OriginSource @default(acta) // Nguồn gốc
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([kiotVietAttributeId])
+  @@index([productId])
+  @@index([attributeName])
+  @@index([attributeValue])
+  @@map("product_attributes")
+}
+
+model ProductUnit {
+  id String @id @default(cuid())
+
+  // KiotViet integration fields
+  kiotVietUnitId Int? @unique // ID đơn vị từ KiotViet
+
+  // Thông tin cơ bản về đơn vị sản phẩm
+  code            String? // Mã đơn vị
+  name            String // Tên đơn vị
+  unit            String // Đơn vị
+  conversionValue Decimal      @db.Decimal(10, 2) // Giá trị quy đổi
+  source          OriginSource @default(acta) // Nguồn gốc
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // quan hệ ngược (tùy chọn) từ Product.masterUnit
+  masterOf Product[] @relation("MasterUnitOfProduct")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kiotVietUnitId])
+  @@index([productId])
+  @@index([name])
+  @@index([unit])
+  @@index([conversionValue])
+  @@map("product_units")
+}
+
+model ProductPriceBook {
+  id String @id @default(cuid())
+
+  // KiotViet integration fields
+  kiotVietPriceBookId Int? @unique // ID bảng giá từ KiotViet
+
+  // Relationship fields
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  priceBookId String
+  priceBook   PriceBook @relation(fields: [priceBookId], references: [id], onDelete: Cascade)
+
+  // Per-product pricebook details
+  name      String
+  price     Decimal      @db.Decimal(10, 2) // Giá áp dụng cho sản phẩm trong bảng giá
+  isActive  Boolean      @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  source    OriginSource @default(acta) // Nguồn gốc
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([priceBookId, productId])
+  @@index([productId])
+  @@index([priceBookId])
+  @@index([isActive])
+  @@index([startDate])
+  @@index([endDate])
+  @@map("product_price_books")
+}
+
+// Global PriceBook entity
+model PriceBook {
+  id String @id @default(cuid())
+
+  // KiotViet integration fields
+  kiotVietPriceBookId Int? @unique // ID bảng giá từ KiotViet
+
+  // Basic information
+  name            String
+  description     String?
+  price           Decimal       @db.Decimal(10, 2)
+  type            PriceBookType
+  isActive        Boolean       @default(true)
+  isGlobal        Boolean       @default(false)
+  startDate       DateTime?
+  endDate         DateTime?
+  forAllCusGroup  Boolean       @default(false)
+  forAllWarehouse Boolean       @default(false)
+  forAllUser      Boolean       @default(false)
+  source          OriginSource  @default(acta) // Nguồn gốc
+
+  // Relationships
+  products       ProductPriceBook[]
+  warehouses     Warehouse[]
+  customerGroups CustomerGroup[]
+  users          User[]             @relation("UserPriceBooks")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([isActive])
+  @@index([startDate])
+  @@index([endDate])
+  @@map("price_books")
+}
+
+model ProductFormula {
+  id String @id @default(cuid())
+
+  // Material information - Thông tin nguyên liệu
+  kiotVietMaterialId   Int? // ID nguyên liệu
+  kiotVietMaterialCode String? // Mã nguyên liệu
+
+  materialName String // Tên nguyên liệu
+  quantity     Decimal      @db.Decimal(10, 2) // Số lượng
+  source       OriginSource @default(acta) // Nguồn gốc
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kiotVietMaterialId])
+  @@index([productId])
+  @@index([materialName])
+  @@index([quantity])
+  @@map("product_formulas")
+}
+
+model ProductSerial {
+  id String @id @default(cuid())
+
+  // KiotViet Integration fields
+  kiotVietSerialId    Int? // ID serial từ KiotViet
+  kiotVietProductId   Int? // ID sản phẩm từ KiotViet
+  kiotVietWarehouseId Int? // ID kho hàng từ KiotViet
+
+  // Thông tin cơ bản về serial
+  serialNumber String // Số serial
+  status       Int          @default(0) // Trạng thái
+  quantity     Int? // Số lượng
+  modifiedDate DateTime? // Ngày sửa đổi
+  source       OriginSource @default(acta) // Nguồn gốc
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, serialNumber]) // cùng 1 sản phẩm, serial không được trùng
+  @@index([kiotVietSerialId])
+  @@index([kiotVietProductId])
+  @@index([kiotVietWarehouseId])
+  @@index([productId])
+  @@index([status])
+  @@index([quantity])
+  @@map("product_serials")
+}
+
+model ProductBatchExpire {
+  id String @id @default(cuid())
+
+  // KiotViet integration fields
+  kiotVietBatchExpireId Int? // ID lô hàng từ KiotViet
+  kiotVietProductId     Int? // ID sản phẩm từ KiotViet
+  kiotVietWarehouseId   Int? // ID kho hàng từ KiotViet
+
+  onHand          Int          @default(0) // Số lượng tồn kho
+  batchName       String // Tên lô hàng
+  expireDate      DateTime // Ngày hết hạn
+  fullNameVirgule String? // Tên đầy đủ có dấu phẩy
+  source          OriginSource @default(acta) // Nguồn gốc
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  warehouseId String    @unique // ID kho hàng
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  invoiceDetails InvoiceDetail[]
+
+  purchaseOrderDetails PurchaseOrderDetail[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([warehouseId, productId, batchName]) // FEFO/lot theo kho–sản phẩm–lô
+  @@index([kiotVietBatchExpireId])
+  @@index([kiotVietProductId])
+  @@index([kiotVietWarehouseId])
+  @@index([productId])
+  @@index([onHand])
+  @@index([batchName])
+  @@index([expireDate])
+  @@index([fullNameVirgule])
+  @@index([warehouseId])
+  @@map("product_batch_expires")
+}
+
+model ProductWarranty {
+  id String @id @default(cuid())
+
+  // KiotViet integration fields
+  kiotVietWarrantyId   Int? // ID bảo hành từ KiotViet
+  kiotVietProductId    Int? // ID sản phẩm từ KiotViet
+  kiotVietTimeType     Int? // Loại thời gian (ngày, tháng, năm)
+  kiotVietWarrantyType Int? // Loại bảo hành
+
+  description  String // Mô tả bảo hành
+  numberTime   Int // Thời gian bảo hành
+  timeType     WarrantyTimeType // Loại thời gian (ngày, tháng, năm)
+  warrantyType WarrantyType // Loại bảo hành
+  source       OriginSource     @default(acta) // Nguồn gốc
+
+  createdById String?
+  createdBy   User?   @relation("UserProductWarranties", fields: [createdById], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, warrantyType, timeType]) // cùng 1 sản phẩm, bảo hành không được trùng
+  @@index([kiotVietWarrantyId])
+  @@index([kiotVietProductId])
+  @@index([kiotVietTimeType])
+  @@index([kiotVietWarrantyType])
+  @@index([productId])
+  @@index([timeType])
+  @@index([warrantyType])
+  @@map("product_warranties")
+}
+
+model ProductShelf {
+  id String @id @default(cuid())
+
+  // KiotViet integration fields
+  kiotVietShelfId     Int? // ID kệ hàng từ KiotViet
+  kiotVietWarehouseId Int? // ID kho hàng từ KiotViet
+
+  productShelves String // Thông tin kệ hàng
+  source         OriginSource @default(acta) // Nguồn gốc
+
+  warehouseId String    @unique // ID kho hàng
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([warehouseId, productId])
+  @@index([kiotVietShelfId])
+  @@index([kiotVietWarehouseId])
+  @@index([productId])
+  @@map("product_shelves")
+}
+
+model WishlistItem {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation("UserWishlist", fields: [userId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId]) // Mỗi user chỉ có thể thêm 1 sản phẩm vào wishlist 1 lần
+  @@map("wishlist_items")
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rating    Float // Điểm đánh giá
+  review    String? // Nhận xét
+  likeCount Int     @default(0) // Số lượt thích
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@map("ratings")
+}

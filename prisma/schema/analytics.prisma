@@ -1,0 +1,102 @@
+// Analytics Schema - Daily Aggregate Tables
+// These tables store pre-computed daily metrics for fast reporting queries
+// Refreshed via scheduled cron jobs to maintain performance
+
+model PaymentsDailyAgg {
+  id            String   @id @default(cuid())
+  day           DateTime // 00:00 UTC day bucket
+  provider      String
+  method        String
+  warehouseId   String?
+  saleChannelId String?
+
+  // Payment counts by status
+  pendingCount   Int @default(0)
+  succeededCount Int @default(0)
+  cancelledCount Int @default(0)
+  failedCount    Int @default(0)
+  refundedCount  Int @default(0)
+
+  // Amount totals by status
+  amountPending   Decimal @default(0) @db.Decimal(15, 2)
+  amountSucceeded Decimal @default(0) @db.Decimal(15, 2)
+  amountRefunded  Decimal @default(0) @db.Decimal(15, 2)
+
+  // Performance metrics
+  avgTimeToPaySec Int @default(0) // average seconds from created to succeeded
+  regenCount      Int @default(0) // fresh pending after a cancellation for same order/day
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, provider, method, warehouseId, saleChannelId])
+  @@index([day, provider, method])
+  @@index([day, warehouseId, saleChannelId])
+  @@map("payments_daily_agg")
+}
+
+model OrdersDailyAgg {
+  id            String   @id @default(cuid())
+  day           DateTime // 00:00 UTC day bucket
+  warehouseId   String?
+  saleChannelId String?
+
+  // Order counts by status
+  ordersCreated   Int @default(0)
+  ordersPayable   Int @default(0) // status = 'awaiting_payment'
+  ordersCompleted Int @default(0) // status = 'completed'
+  ordersCancelled Int @default(0) // status = 'cancelled'
+
+  // Financial metrics
+  aov     Decimal @default(0) @db.Decimal(15, 2) // Average Order Value
+  revenue Decimal @default(0) @db.Decimal(15, 2) // Gross revenue from succeeded payments
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, warehouseId, saleChannelId])
+  @@index([day, warehouseId, saleChannelId])
+  @@map("orders_daily_agg")
+}
+
+model RefundsDailyAgg {
+  id            String   @id @default(cuid())
+  day           DateTime // 00:00 UTC day bucket
+  provider      String
+  method        String
+  warehouseId   String?
+  saleChannelId String?
+
+  // Refund metrics
+  refundsRequested Int     @default(0)
+  refundsApproved  Int     @default(0)
+  refundsSucceeded Int     @default(0)
+  refundsCancelled Int     @default(0)
+  amountRefunded   Decimal @default(0) @db.Decimal(15, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, provider, method, warehouseId, saleChannelId])
+  @@index([day, provider, method])
+  @@index([day, warehouseId, saleChannelId])
+  @@map("refunds_daily_agg")
+}
+
+// Analytics refresh tracking
+model AnalyticsRefreshLog {
+  id            String    @id @default(cuid())
+  tableName     String // 'payments', 'orders', 'refunds'
+  day           DateTime // The day being refreshed
+  status        String // 'started', 'completed', 'failed'
+  rowsProcessed Int       @default(0)
+  rowsUpserted  Int       @default(0)
+  durationMs    Int       @default(0) // Processing time in milliseconds
+  error         String? // Error message if failed
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([tableName, day])
+  @@index([startedAt])
+  @@map("analytics_refresh_log")
+}

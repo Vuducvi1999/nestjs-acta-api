@@ -1,0 +1,119 @@
+enum ReturnOrderStatus {
+  returned // eq 1
+  cancelled // eq 2
+}
+
+model ReturnOrder {
+  id   String @id @default(cuid())
+  code String @unique // Mã đơn trả hàng
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietReturnOrderId Int?    @unique // ID đơn trả hàng từ KiotViet
+  kiotVietInvoiceId     Int? // ID hóa đơn từ KiotViet
+  kiotVietWarehouseId   Int? // ID kho hàng từ KiotViet
+  kiotVietCustomerId    Int? // ID khách hàng từ KiotViet
+  kiotVietReceivedById  Int? // ID người nhận hàng trả từ KiotViet
+  kiotVietSoldByName    String? // Tên người bán từ KiotViet
+
+  // Thông tin về trả hàng
+  returnDate     DateTime // Ngày trả hàng
+  returnDiscount Decimal?          @default(0) @db.Decimal(15, 2) // Giảm giá trả hàng
+  returnFee      Decimal?          @default(0) @db.Decimal(15, 2) // Phí trả hàng
+  status         ReturnOrderStatus @default(returned) // Trạng thái
+  source         OriginSource      @default(acta) // Nguồn gốc
+
+  // Sold by information - Thông tin người bán hàng
+  soldById String   @unique
+  soldBy   Business @relation(fields: [soldById], references: [id], onDelete: Cascade)
+
+  // Invoice relationship - Quan hệ hóa đơn
+  invoiceId String?  @unique
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  // Received by information - Thông tin người nhận hàng trả
+  receivedById String @unique
+  receivedBy   User   @relation("UserReturnOrders", fields: [receivedById], references: [id], onDelete: Cascade)
+
+  // Warehouse information - Thông tin kho hàng
+  warehouseId String?    @unique
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  // Customer information - Thông tin khách hàng
+  customerId   String?   @unique
+  customerName String // Tên khách hàng
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  payments ReturnOrderPayment[] // Thanh toán
+
+  returnDetails ReturnOrderDetail[] // Chi tiết trả hàng
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kiotVietReturnOrderId])
+  @@index([kiotVietInvoiceId])
+  @@index([kiotVietWarehouseId])
+  @@index([kiotVietCustomerId])
+  @@index([kiotVietReceivedById])
+  @@index([kiotVietSoldByName])
+  @@index([status])
+  @@map("return_orders")
+}
+
+model ReturnOrderPayment {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietPaymentId Int? @unique // ID thanh toán từ KiotViet
+  kiotVietAccountId Int? // ID tài khoản ngân hàng từ KiotViet
+
+  amount      Decimal       @db.Decimal(15, 2) // Số tiền thanh toán
+  method      PaymentMethod // Phương thức thanh toán
+  status      PaymentStatus // Trạng thái thanh toán
+  transDate   DateTime // Ngày thanh toá
+  bankAccount String // Nơi nhận thanh toán - có thể thanh toán tại quầy hoặc ck
+  source      OriginSource  @default(acta) // Nguồn gốc
+
+  accountId String?      @unique
+  account   BankAccount? @relation(fields: [accountId], references: [id])
+
+  returnOrderId String
+  returnOrder   ReturnOrder @relation(fields: [returnOrderId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([returnOrderId])
+  @@index([kiotVietPaymentId])
+  @@index([kiotVietAccountId])
+  @@map("return_order_payments")
+}
+
+model ReturnOrderDetail {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietReturnDetailId Int? @unique // ID chi tiết trả hàng từ KiotViet
+
+  quantity Int // Số lượng
+  price    Decimal @db.Decimal(15, 2) // Giá
+  discount Decimal @db.Decimal(15, 2) // Giảm giá
+  note     String? // Ghi chú
+  usePoint Boolean @default(false) // Sử dụng điểm thưởng
+
+  source OriginSource @default(acta) // Nguồn gốc
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  returnOrderId String
+  returnOrder   ReturnOrder @relation(fields: [returnOrderId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([returnOrderId])
+  @@index([kiotVietReturnDetailId])
+  @@map("return_order_details")
+}

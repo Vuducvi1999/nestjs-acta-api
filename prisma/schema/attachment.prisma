@@ -1,0 +1,28 @@
+model Attachment {
+  id               String    @id @default(uuid())
+  fileName         String    @db.VarChar(255)
+  mimeType         String
+  originalFileName String    @db.VarChar(255)
+  fileUrl          String    @db.VarChar(1024)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  // Profile image relations
+  userAvatar      User?   @relation("UserAvatar")
+  userCover       User?   @relation("UserCover")
+  oldAvatarUserId String?
+  oldAvatarUser   User?   @relation("UserOldAvatars", fields: [oldAvatarUserId], references: [id])
+  oldCoverUserId  String?
+  oldCoverUser    User?   @relation("UserOldCovers", fields: [oldCoverUserId], references: [id])
+
+  documentThumbnail Document? @relation("DocumentThumbnail")
+
+  documentId         String?
+  documentAttachment Document? @relation("DocumentAttachments", fields: [documentId], references: [id])
+
+  // 🔗 New relation to messages
+  messages Message[] @relation("MessageAttachments")
+
+  @@map("attachments")
+}

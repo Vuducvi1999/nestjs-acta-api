@@ -1,0 +1,22 @@
+model WebHook {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietWebhookId Int? @unique // ID webhook từ KiotViet
+
+  // Thông tin webhook
+  type        String // Loại webhook
+  url         String // URL webhook
+  isActive    Boolean @default(true) // Trạng thái hoạt động
+  description String // Ghi chú
+  secret      String // Secret key
+
+  source OriginSource @default(acta) // Nguồn gốc
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kiotVietWebhookId])
+  @@index([type])
+  @@map("webhooks")
+}

@@ -1,0 +1,39 @@
+model Address {
+  id String @id @default(uuid())
+
+  // Basic address information
+  name     String // Display name for the address (e.g., "Home", "Office")
+  type     String // Type: 'home', 'work', 'other'
+  fullName String // Full name of the recipient
+  phone    String // Phone number
+
+  // Address components
+  street     String // Street address
+  ward       String? // Ward/Neighborhood (for detailed addressing)
+  district   String? // District (for detailed addressing)
+  city       String // City
+  state      String? // State/Province (optional for international addresses)
+  country    String // Country
+  postalCode String? // Postal/ZIP code
+
+  // Google Places API fields (for future implementation)
+  placeId          String? // Google Places ID
+  latitude         Float? // Latitude coordinate
+  longitude        Float? // Longitude coordinate
+  formattedAddress String? // Google-formatted address
+
+  // User settings
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  warehouseId String?    @unique
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@map("addresses")
+}

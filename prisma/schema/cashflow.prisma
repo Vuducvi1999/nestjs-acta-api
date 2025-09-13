@@ -1,0 +1,89 @@
+enum CashflowPartnerType {
+  customer
+  business
+  employee
+  delivery
+  collaborator
+  warehouse
+  bank
+  wallet
+  other
+}
+
+enum CashflowType {
+  in
+  out
+}
+
+enum CashflowStatus {
+  draft
+  completed
+  cancelled
+}
+
+model CashflowGroup {
+  id String @id @default(cuid())
+
+  name        String // Tên nhóm dòng tiền
+  description String? // Mô tả
+
+  cashflows Cashflow[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@map("cashflow_groups")
+}
+
+model Cashflow {
+  id   String @id @default(cuid())
+  code String @unique // Mã dòng tiền
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietCashflowId      Int? @unique // ID dòng tiền từ KiotViet
+  kiotVietAccountId       Int? // ID tài khoản ngân hàng từ KiotViet
+  kiotVietPartnerId       Int? // ID đối tác từ KiotViet
+  kiotVietWarehouseId     Int? // ID chi nhánh từ KiotViet
+  kiotVietCashflowGroupId Int? // ID nhóm dòng tiền từ KiotViet
+  kiotVietCreatedById     Int? // ID người tạo dòng tiền từ KiotViet
+
+  usedForFinancialReporting Boolean        @default(false) // Sử dụng cho báo cáo tài chính
+  description               String // Mô tả
+  contactNumber             String? // Số điện thoại liên hệ
+  address                   String? // Địa chỉ
+  method                    PaymentMethod // Phương thức thanh toán
+  type                      CashflowType
+  status                    CashflowStatus
+  source                    OriginSource   @default(acta) // Nguồn gốc
+  amount                    Decimal        @db.Decimal(15, 2) // Số tiền
+  transDate                 DateTime // Ngày giao dịch
+
+  partnerType CashflowPartnerType // Loại đối tác
+  partnerId   String?             @unique
+  partner     Business?           @relation(fields: [partnerId], references: [id])
+
+  accountId String?
+  account   BankAccount? @relation(fields: [accountId], references: [id])
+
+  cashflowGroupId String?
+  cashflowGroup   CashflowGroup? @relation(fields: [cashflowGroupId], references: [id])
+
+  warehouseId String?    @unique
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("UserCashflows", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId])
+  @@index([cashflowGroupId])
+  @@index([kiotVietCashflowId])
+  @@index([partnerId])
+  @@index([warehouseId])
+  @@index([createdById])
+  @@index([source])
+  @@map("cashflows")
+}

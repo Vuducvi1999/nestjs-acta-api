@@ -1,0 +1,59 @@
+model Notification {
+  id             String             @id @default(uuid())
+  userId         String             @map("user_id")
+  relatedModel   RelatedModel       @map("related_model")
+  relatedModelId String             @map("related_model_id")
+  action         NotificationAction
+  message        String
+  linkUrl        String?            @map("link_url") // URL to navigate to when notification is clicked
+  isRead         Boolean            @default(false) @map("is_read")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([relatedModel, relatedModelId])
+  @@map("notifications")
+}
+
+enum RelatedModel {
+  news_item
+  document
+  post
+  user
+  comment
+  system
+}
+
+enum NotificationAction {
+  //KYC Action
+  kyc_submitted
+  kyc_approved
+  kyc_changing
+  kyc_changed
+
+  //User Action
+  direct_referral_registered
+  indirect_referral_registered
+  direct_referral_verified
+  birthday_reminder
+  pending_approval
+
+  created
+  updated
+  deleted
+  liked
+  commented
+  shared
+  viewed
+  downloaded
+  followed
+  unfollowed
+  approved
+  rejected
+  published
+  unpublished
+  system_alert
+}

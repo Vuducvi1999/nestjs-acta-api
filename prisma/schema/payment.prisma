@@ -1,0 +1,203 @@
+// enums
+enum PaymentProvider {
+  vnpay
+  stripe
+  vietqr
+}
+
+enum PaymentMethod {
+  cash
+  card
+  wallet
+  transfer
+  voucher
+  other
+}
+
+enum PaymentProcessingStatus {
+  created
+  pending
+  succeeded
+  failed
+  cancelled
+  refunded
+}
+
+enum RefundStatus {
+  requested
+  approved
+  processing
+  succeeded
+  failed
+  cancelled
+}
+
+enum TransactionType {
+  charge
+  refund
+  payout
+  adjustment
+}
+
+enum PayoutStatus {
+  pending
+  processing
+  paid
+  failed
+}
+
+// tables
+model Payment {
+  id   String @id @default(cuid())
+  code String @unique // Mã thanh toán
+
+  provider     PaymentProvider
+  method       PaymentMethod
+  providerRef  String? // VNPay: vnp_TxnRef / vnp_TransactionNo; Stripe: pi_...; VietQR: bank txn id
+  clientSecret String? // Stripe (if using PaymentIntents)
+  amount       Decimal                 @db.Decimal(15, 2)
+  currency     String                  @default("VND") // "VND" | "USD" etc
+  status       PaymentProcessingStatus @default(created)
+
+  // helpful timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  succeededAt DateTime?
+  failedAt    DateTime?
+  cancelledAt DateTime?
+  refundedAt  DateTime?
+  expiresAt   DateTime? // used everywhere in code
+
+  // For VNPay redirect URL (optional convenience; can also live in requestMeta)
+  checkoutUrl String?
+
+  // VNPay & Stripe request/response raw blobs for audit
+  requestMeta  Json?
+  responseMeta Json?
+
+  // idempotency
+  idempotencyKey String? @unique
+
+  // Relations
+  transactions PaymentTransaction[]
+  attempts     PaymentAttempt[] // <— optional: track each gateway attempt
+  refunds      PaymentRefund[] // Refunds for this payment
+
+  orderPaymentId String?       @unique
+  orderPayment   OrderPayment? @relation(fields: [orderPaymentId], references: [id], onDelete: Cascade)
+
+  invoicePaymentId String?         @unique
+  invoicePayment   InvoicePayment? @relation(fields: [invoicePaymentId], references: [id])
+
+  @@index([provider, providerRef])
+  @@index([status, createdAt])
+  @@index([provider, status])
+  @@index([status, expiresAt])
+  @@map("payments")
+}
+
+model PaymentRefund {
+  id            String       @id @default(cuid())
+  paymentId     String
+  payment       Payment      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  amount        Decimal      @db.Decimal(15, 2)
+  status        RefundStatus @default(requested) // requested|approved|processing|succeeded|failed|cancelled
+  reason        String?
+  reference     String? // internal refund code
+  providerRef   String? // bank txn id when settled
+  requestMeta   Json?
+  responseMeta  Json?
+  requestedById String?
+  approvedById  String?
+  processedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([paymentId, status])
+  @@map("payment_refunds")
+}
+
+model PaymentTransaction {
+  id        String  @id @default(cuid())
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  type        TransactionType
+  amount      Decimal         @db.Decimal(15, 2)
+  currency    String
+  providerRef String? // e.g., Stripe charge id, VNPay trans no.
+  meta        Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([paymentId, type, createdAt])
+  @@map("payment_transactions")
+}
+
+// Optional – per-attempt mirror of gateways (Stripe PaymentIntent attempt, VNPay create-url)
+// Helps debugging/SCA and multiple retries
+model PaymentAttempt {
+  id        String  @id @default(cuid())
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  providerRef  String? // e.g. Stripe pi_… or VNPay vnp_TxnRef
+  status       PaymentProcessingStatus
+  amount       Decimal                 @db.Decimal(15, 2)
+  currency     String
+  checkoutUrl  String? // VNPay pay URL (if applicable)
+  requestMeta  Json?
+  responseMeta Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([paymentId, status, createdAt])
+  @@map("payment_attempts")
+}
+
+// Optional – to credit F2/F1/F0 to in-app balance (cashback/payouts)
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Decimal  @default(0) @db.Decimal(15, 2)
+  currency  String // "VND"
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  // Relations
+  ledger WalletLedger[]
+
+  @@map("wallets")
+}
+
+model WalletLedger {
+  id        String   @id @default(cuid())
+  walletId  String
+  wallet    Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amount    Decimal  @db.Decimal(15, 2) // + credit / - debit
+  reason    String // "affiliate:F2" | "affiliate:F1" | "payout"
+  refId     String? // link to AffiliateCommission.id / Payout id
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([walletId, createdAt])
+  @@map("wallet_ledger")
+}
+
+model Payout {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Decimal      @db.Decimal(15, 2)
+  currency  String
+  status    PayoutStatus @default(pending)
+  method    String? // "bank_transfer", "stripe_transfer", etc.
+  meta      Json?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([userId])
+  @@map("payouts")
+}

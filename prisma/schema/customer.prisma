@@ -1,0 +1,55 @@
+model Customer {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietCustomerId   Int?    @unique // ID khách hàng từ KiotViet
+  kiotVietCustomerCode String? @unique // Mã khách hàng từ KiotViet
+
+  // Thông tin khách hàng
+  taxCode  String? // Mã số thuế
+  comments String? // Ghi chú
+  source   OriginSource @default(acta) // Nguồn gốc
+
+  // Metrics - Các chỉ số
+  rewardPoint  Int? @default(0) // Điểm thưởng
+  psidFacebook Int? // PSID Facebook
+
+  // Relationships
+  userId String? @unique // nullable cause they may come from other sources
+  user   User?   @relation("UserCustomer", fields: [userId], references: [id])
+
+  customerGroupId String?
+  customerGroup   CustomerGroup? @relation("CustomerGroupCustomers", fields: [customerGroupId], references: [id])
+
+  orders       Order[]
+  invoices     Invoice[]
+  returnOrders ReturnOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kiotVietCustomerId])
+  @@index([userId])
+  @@index([customerGroupId])
+  @@map("customers")
+}
+
+model CustomerGroup {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietCustomerGroupId Int? @unique // ID nhóm khách hàng từ KiotViet
+
+  // Thông tin nhóm khách hàng
+  name String // Tên nhóm khách hàng
+
+  // Relationships
+  customers  Customer[]  @relation("CustomerGroupCustomers")
+  priceBooks PriceBook[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kiotVietCustomerGroupId])
+  @@map("customer_groups")
+}

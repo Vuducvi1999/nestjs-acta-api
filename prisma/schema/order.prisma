@@ -1,0 +1,235 @@
+enum PaymentStatus {
+  paid // Đã thanh toán
+  processing // Đang xử lý
+  canceled // Đã hủy
+  refunded // Đã hoàn tiền
+  failed // Thanh toán thất bại
+}
+
+// Enums - Các kiểu dữ liệu liệt kê
+enum OrderStatus {
+  draft // Phiếu tạm
+  delivering // Đang giao hàng
+  completed // Hoàn thành
+  cancelled // Đã hủy
+  confirmed // Đã xác nhận
+  shipped // Đã giao hàng
+  refunded // Đã hoàn tiền
+}
+
+model Order {
+  id   String @id @default(cuid())
+  code String @unique // Mã đơn hàng
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietOrderId       Int?    @unique // ID đơn hàng từ KiotViet
+  kiotVietOrderCode     String? // Mã đơn hàng từ KiotViet
+  kiotVietWarehouseId   Int? // ID kho hàng từ KiotViet
+  kiotVietCustomerId    Int? // ID khách hàng từ KiotViet
+  kiotVietSoldById      Int? // ID người bán từ KiotViet
+  kiotVietSaleChannelId Int? // ID kênh bán hàng từ KiotViet
+
+  // Thông tin đặt hàng
+  purchaseDate DateTime // Ngày mua hàng
+  description  String? // Mô tả đơn hàng
+  source       OriginSource @default(acta) // Nguồn gốc
+
+  // Status - trạng thái đơn hàng
+  status        OrderStatus   @default(draft)
+  paymentStatus PaymentStatus @default(processing)
+  usingCod      Boolean       @default(false) // Sử dụng COD
+
+  // Pricing - Giá
+  subtotal    Decimal @default(0) @db.Decimal(15, 2)
+  shippingFee Decimal @default(0) @db.Decimal(15, 2)
+  discount    Decimal @default(0) @db.Decimal(15, 2)
+  total       Decimal @default(0) @db.Decimal(15, 2)
+
+  // Payments - Thanh toán
+  payments OrderPayment[]
+
+  // Shipping - Vận chuyển 
+  trackingNumber    String? // Mã theo dõi
+  estimatedDelivery DateTime? // Ngày giao hàng dự kiến
+  deliveredAt       DateTime? // Ngày giao hàng thực tế
+
+  // Notes - Ghi chú
+  customerNote String? // Ghi chú của khách hàng
+  adminNote    String? // Ghi chú của ban quản trị
+
+  // Warehouse - Kho hàng
+  warehouseId String // ID kho hàng
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  // Discount
+  discountRatio Float? // Tỷ lệ giảm giá
+
+  // Customer - Khách hàng
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  orderDetails OrderDetail[] // Chi tiết đơn hàng
+
+  invoiceOrderSurcharges InvoiceOrderSurcharge[] // Thu khác
+
+  orderDeliveryId String?
+  orderDelivery   OrderDelivery?
+
+  saleChannelId String?
+  saleChannel   SaleChannel? @relation(fields: [saleChannelId], references: [id])
+
+  reviews Review[] // Đánh giá sau khi mua
+
+  invoices Invoice[] // Hóa đơn
+
+  // Affiliate commissions
+  affiliateCommissions    AffiliateCommission[]
+  affiliateCommissionLogs AffiliateCommissionLog[]
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  paidAt            DateTime?
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  clientRequestId   String?   @unique
+  refundRequestedAt DateTime? // When refund was first requested
+  refundedAt        DateTime? // When refund was completed
+
+  @@index([warehouseId])
+  @@index([customerId])
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+model OrderPayment {
+  id   String @id @default(cuid())
+  code String @unique // Mã thanh toán
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietPaymentId   Int?    @unique // ID thanh toán từ KiotViet
+  kiotVietPaymentCode String? // Mã thanh toán từ KiotViet
+  kiotVietAccountId   Int? // ID tài khoản ngân hàng từ KiotViet
+
+  // Payment information - Thông tin thanh toán
+  method      PaymentMethod // Phương thức thanh toán
+  status      PaymentStatus @default(processing) // Trạng thái thanh toán
+  amount      Decimal       @db.Decimal(10, 2) // Số tiền thanh toán
+  transDate   DateTime // Ngày thanh toán
+  bankAccount String // Nơi nhận thanh toán - có thể thanh toán tại quầy hoặc ck
+  description String? // Ghi chú
+  expiresAt   DateTime? // Thời gian hết hạn thanh toán
+  source      OriginSource  @default(acta) // Nguồn gốc
+
+  accountId String?      @unique
+  account   BankAccount? @relation(fields: [accountId], references: [id])
+
+  payment Payment?
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([kiotVietPaymentId])
+  @@index([amount])
+  @@map("order_payments")
+}
+
+model OrderDetail {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietProductId  Int? // ID sản phẩm từ KiotViet
+  kiotVietBusinessId Int? // ID đối tác từ KiotViet
+
+  // Thông tin thành phần đặt hàng chi tiết
+  quantity      Int // Số lượng
+  price         Decimal @default(0.00) @db.Decimal(15, 2) // Giá sản phẩm tại thời điểm mua hàng
+  discount      Decimal @default(0) @db.Decimal(10, 2) // Giảm giá
+  discountRatio Float? // Tỷ lệ giảm giá
+
+  isMaster Boolean      @default(false) // Là sản phẩm chính
+  note     String? // Ghi chú
+  source   OriginSource @default(acta) // Nguồn gốc
+
+  // Business - Đối tác bán hàng
+  soldById String
+  soldBy   Business @relation(fields: [soldById], references: [id])
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  // Commission Summary
+  commissionSummary CommissionSummary?
+
+  // Affiliate Commissions
+  affiliateCommissions AffiliateCommission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([kiotVietProductId])
+  @@index([quantity])
+  @@index([price])
+  @@index([discount])
+  @@index([discountRatio])
+  @@index([isMaster])
+  @@index([note])
+  @@map("order_details")
+}
+
+model OrderDelivery {
+  id   String @id @default(cuid())
+  code String @unique // Mã vận chuyển
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietOrderDeliveryId   Int? // ID vận chuyển từ KiotViet
+  kiotVietDeliveryCode      String? // Mã vận chuyển từ KiotViet
+  kiotVietLocationId        Int? // ID địa điểm từ KiotViet
+  kiotVietLocationName      String? // Tên địa điểm từ KiotViet
+  kiotVietPartnerDeliveryId Int? // ID đối tác vận chuyển từ KiotViet
+
+  type          Int? // 1. Ship COD, 2. At Warehouse
+  price         Decimal?     @db.Decimal(10, 2) // Giá vận chuyển
+  receiver      String // Người nhận
+  contactNumber String // Số điện thoại người nhận
+  address       String // Địa chỉ người nhận
+  weight        Float? // Trọng lượng
+  length        Float? // Chiều dài
+  width         Float? // Chiều rộng
+  height        Float? // Chiều cao
+  source        OriginSource @default(acta) // Nguồn gốc
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  partnerDeliveryId String?          @unique
+  partnerDelivery   PartnerDelivery? @relation(fields: [partnerDeliveryId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([partnerDeliveryId])
+  @@index([orderId])
+  @@index([kiotVietOrderDeliveryId])
+  @@index([kiotVietDeliveryCode])
+  @@index([kiotVietLocationId])
+  @@index([kiotVietLocationName])
+  @@index([kiotVietPartnerDeliveryId])
+  @@index([type])
+  @@index([price])
+  @@index([receiver])
+  @@index([contactNumber])
+  @@index([address])
+  @@index([weight])
+  @@index([length])
+  @@index([width])
+  @@map("order_deliveries")
+}

@@ -1,0 +1,200 @@
+enum ReactionType {
+  LIKE
+  LOVE
+  HAHA
+  WOW
+  SAD
+  ANGRY
+}
+
+// Social features models
+model Post {
+  id String @id @default(uuid())
+
+  content     String? @db.Text
+  isPublished Boolean @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  publishedAt DateTime?
+
+  // Relations
+  userId String
+  user   User   @relation("UserPosts", fields: [userId], references: [id], onDelete: Cascade)
+
+  imageUrls String[] @default([]) // URLs of images associated with the post
+  videoUrls String[] @default([]) // URLs of videos associated with the post
+
+  locationId String?
+  location   PostLocation?
+
+  feelingId String? // e.g., "happy"
+  feeling   PostFeeling? @relation(fields: [feelingId], references: [id], onDelete: SetNull)
+
+  activityId String?
+  activity   PostActivity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  // 👇 New relation to tagged users
+  taggedUsers User[] @relation("TaggedPosts")
+
+  reactionCount Int @default(0)
+  commentCount  Int @default(0)
+
+  reactions Reaction[] @relation("PostReactions")
+  comments  Comment[]  @relation("PostComments")
+  muxData   MuxData[]  @relation("PostMuxData")
+
+  // Saved posts relation
+  savedPosts SavedPost[] @relation("PostSavedPosts")
+
+  @@index([userId])
+  @@index([isPublished])
+  @@map("posts")
+}
+
+model PostFeeling {
+  id String @id @default(uuid()) // internal ID
+
+  label String // "Hạnh phúc"
+  icon  String // emoji or URL (e.g., "😊" or image URL)
+  posts Post[] // Back relation
+
+  @@unique([label])
+  @@map("post_feelings")
+}
+
+model PostActivityCategory {
+  id String @id @default(uuid())
+
+  icon       String // e.g., "🎉"
+  name       String // e.g., "Đang nghĩ về..."
+  activities PostActivity[]
+
+  @@unique([name])
+  @@map("post_activity_categories")
+}
+
+model PostActivity {
+  id String @id @default(uuid())
+
+  label String // e.g., "ý nghĩa của cuộc sống"
+  icon  String // e.g., ☁️ emoji or image
+
+  categoryId String
+  category   PostActivityCategory @relation(fields: [categoryId], references: [id])
+
+  posts Post[] // Posts linked to this activity
+
+  @@unique([label, categoryId])
+  @@map("post_activities")
+}
+
+model PostLocation {
+  id      String @id @default(uuid())
+  address String
+
+  postId String @unique
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("post_locations")
+}
+
+model Reaction {
+  id String @id @default(uuid())
+
+  type ReactionType
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId String
+  user   User   @relation("UserReactions", fields: [userId], references: [id], onDelete: Cascade)
+
+  postId String
+  post   Post   @relation("PostReactions", fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("reactions")
+}
+
+model Comment {
+  id String @id @default(uuid())
+
+  content   String
+  userId    String
+  postId    String
+  parentId  String? // For nested comments
+  likeCount Int     @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  // Relations
+  user      User      @relation("UserComments", fields: [userId], references: [id], onDelete: Cascade)
+
+  post Post @relation("PostComments", fields: [postId], references: [id], onDelete: Cascade)
+
+  parent Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+
+  replies Comment[]     @relation("CommentReplies")
+  likes   CommentLike[] @relation("CommentLikes")
+
+  @@map("comments")
+}
+
+model CommentLike {
+  id String @id @default(uuid())
+
+  type ReactionType @default(LIKE)
+
+  userId    String
+  commentId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user    User    @relation("UserCommentLikes", fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation("CommentLikes", fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@map("comment_likes")
+}
+
+// Saved/Bookmarked posts
+model SavedPost {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation("UserSavedPosts", fields: [userId], references: [id], onDelete: Cascade)
+
+  postId String
+  post   Post   @relation("PostSavedPosts", fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, postId])
+  @@map("saved_posts")
+}
+
+model Follower {
+  id String @id @default(uuid())
+
+  followerId String
+  follower   User   @relation("UserFollowersFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+
+  followingId String
+  following   User   @relation("UserFollowersFollowed", fields: [followingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([followerId, followingId])
+  @@map("followers")
+}

@@ -1,0 +1,74 @@
+enum BusinessType {
+  expansion // Đối tác mở rộng
+  platform // Đối tác nền tảng
+}
+
+model Business {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietTradeMarkId Int?    @unique // ID đối tác từ KiotViet
+  code                String? @unique // Mã đối tác
+
+  // Thông tin cơ bản
+  name        String // Tên đối tác
+  slug        String       @unique // URL thân thiện
+  description String? // Mô tả
+  slogan      String? // Khẩu hiệu
+  logo        String? // Logo
+  banner      String? // Banner
+  avatar      String? // Ảnh đại diện
+  source      OriginSource @default(acta) // Nguồn gốc
+
+  // Thông tin về đối tác
+  type    BusinessType @default(expansion) // Loại đối tác
+  taxCode String? // Mã số thuế
+
+  // Contact information - Thông tin liên hệ
+  email    String // Email
+  phone    String // Số điện thoại
+  website  String? // Website
+  address  String? // Địa chỉ
+  location String? // Vị trí
+
+  // Social media - Mạng xã hội
+  facebook  String? // Facebook
+  instagram String? // Instagram
+
+  // Metrics - Các chỉ số
+  rating       Float  @default(0) // Đánh giá trung bình
+  totalRatings Int    @default(0) // Tổng số đánh giá
+  productCount Int    @default(0) // Số lượng sản phẩm
+  followers    Int    @default(0) // Số người theo dõi
+  responseRate Float  @default(0) // Tỷ lệ phản hồi
+  responseTime String @default("24h") // Thời gian phản hồi
+
+  // Status - Trạng thái
+  verified Boolean  @default(false) // Đã xác minh
+  isActive Boolean  @default(true) // Đang hoạt động
+  joinDate DateTime @default(now()) // Ngày tham gia
+
+  // Relationships - Các mối quan hệ
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  products        Product[]
+  orderDetails    OrderDetail[]
+  invoices        Invoice[]
+  purchaseOrders  PurchaseOrder[]
+  returnOrders    ReturnOrder[]
+  cashflows       Cashflow[]
+  orderBusinesses OrderBusiness[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kiotVietTradeMarkId])
+  @@index([name])
+  @@index([slug])
+  @@index([code])
+  @@index([isActive])
+  @@index([userId])
+  @@index([source])
+  @@map("businesses")
+}

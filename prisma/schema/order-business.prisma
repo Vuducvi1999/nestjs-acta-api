@@ -1,0 +1,149 @@
+enum OrderBusinessStatus {
+  draft
+  confirmed
+  completed
+  cancelled
+  returned
+}
+
+enum ExpensesOtherForm {
+  order
+  invoice
+  purchaseOrder
+  returnOrder
+  cashflow
+  other
+}
+
+model OrderBusiness {
+  id   String @id @default(cuid())
+  code String @unique
+
+  // KiotViet integration fields
+  kiotVietOrderBusinessId Int? @unique // ID đơn hàng từ KiotViet
+  kiotVietInvoiceId       Int? // ID hóa đơn từ KiotViet
+  kiotVietWarehouseId     Int? // ID kho từ KiotViet
+  kiotVietUserId          Int? // ID người dùng từ KiotViet
+
+  // Basic information
+  description        String? // Mô tả đơn hàng
+  status             OrderBusinessStatus @default(draft)
+  orderDate          DateTime // Ngày đặt hàng
+  discount           Decimal             @default(0) // Giảm giá
+  discountRatio      Decimal             @default(0) // Tỷ lệ giảm giá
+  paidAmount         Decimal             @default(0) // Số tiền đã thanh toán
+  toComplete         Boolean             @default(false) // Chưa hoàn thành
+  exReturnSuppliers  Decimal             @default(0) // Số tiền trả lại nhà cung cấp
+  exReturnThirdParty Decimal             @default(0) // Số tiền trả lại khách hàng
+  viewPrice          Boolean             @default(false) // Hiển thị giá
+  supplierDebt       Decimal             @default(0) // Nợ nhà cung cấp
+  supplierOldDebt    Decimal             @default(0) // Nợ nhà cung cấp cũ
+
+  orderBusinessDetails        OrderBusinessDetail[]
+  orderBusinessExpensesOthers OrderBusinessExpense[]
+
+  purchaseOrders PurchaseOrder[]
+
+  // Relationships
+  businessId String?
+  business   Business? @relation(fields: [businessId], references: [id])
+
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("UserOrderBusinesses", fields: [createdById], references: [id])
+
+  invoice Invoice?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code])
+  @@index([status])
+  @@index([orderDate])
+  @@index([discount])
+  @@index([discountRatio])
+  @@index([paidAmount])
+  @@index([toComplete])
+  @@index([exReturnSuppliers])
+  @@index([exReturnThirdParty])
+  @@index([viewPrice])
+  @@index([supplierDebt])
+  @@index([supplierOldDebt])
+  @@map("order_business")
+}
+
+model OrderBusinessDetail {
+  id String @id @default(cuid())
+
+  // KiotViet integration fields
+  kiotVietProductId       Int? // ID sản phẩm từ KiotViet
+  kiotVietOrderBusinessId Int? // ID đơn hàng từ KiotViet
+
+  // Thông tin về chi tiết đơn hàng
+  quantity      Int // Số lượng nhận hàng thực tế
+  orderQuantity Int // Số lượng đặt hàng dự kiến
+  price         Decimal      @db.Decimal(15, 2) // Giá
+  discount      Decimal      @db.Decimal(15, 2) // Giảm giá
+  discountRatio Decimal      @db.Decimal(15, 2) // Tỷ lệ giảm giá
+  description   String? // Mô tả
+  source        OriginSource @default(acta) // Nguồn gốc
+
+  // Thông tin về sản phẩm
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  orderBusinessId String
+  orderBusiness   OrderBusiness @relation(fields: [orderBusinessId], references: [id])
+
+  @@index([productId])
+  @@index([orderBusinessId])
+  @@index([source])
+  @@map("order_business_detail")
+}
+
+model OrderBusinessExpense {
+  id String @id @default(cuid())
+
+  // KiotViet integration fields
+  kiotVietExpensesOtherId Int? // ID chi phí khác từ KiotViet
+
+  // Thông tin về chi phí khác
+  price        Decimal      @db.Decimal(15, 2) // Giá
+  order        Int? // Thứ tự
+  isReturnAuto Boolean      @default(false) // Tự động trả lại
+  exValue      Decimal      @db.Decimal(15, 2) // Giá trị trả lại
+  source       OriginSource @default(acta) // Nguồn gốc
+
+  orderBusinessId String
+  orderBusiness   OrderBusiness @relation(fields: [orderBusinessId], references: [id])
+
+  expensesOther ExpensesOther?
+
+  @@index([orderBusinessId])
+  @@index([source])
+  @@map("order_business_expense")
+}
+
+model ExpensesOther {
+  id   String @id @default(cuid())
+  code String // Mã chi phí khác
+
+  // KiotViet integration fields
+  kiotVietExpensesOtherId Int? // ID chi phí khác từ KiotViet
+
+  // Thông tin về chi phí khác
+  name        String // Tên chi phí khác
+  description String? // Mô tả
+  source      OriginSource @default(acta) // Nguồn gốc
+
+  // Relationships
+  form                         ExpensesOtherForm? // Loại chi phí khác
+  orderBusinessExpensesOtherId String               @unique
+  orderBusinessExpensesOther   OrderBusinessExpense @relation(fields: [orderBusinessExpensesOtherId], references: [id])
+
+  @@index([code])
+  @@index([source])
+  @@map("expenses_other")
+}

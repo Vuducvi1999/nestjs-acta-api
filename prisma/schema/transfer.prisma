@@ -1,0 +1,67 @@
+enum TransferStatus {
+  draft
+  delivering
+  completed
+  cancelled
+}
+
+model Transfer {
+  id   String @id @default(cuid())
+  code String @unique // Mã đơn chuyển kho
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietTransferId   Int? @unique // ID đơn chuyển kho từ KiotViet
+  kiotVietCreatedById  Int? // ID người tạo đơn chuyển kho từ KiotViet
+  kiotVietFromBranchId Int? // ID kho gửi từ KiotViet
+  kiotVietToBranchId   Int? // ID kho nhận từ KiotViet
+
+  status      TransferStatus @default(draft) // Trạng thái đơn chuyển kho
+  description String // Mô tả
+  source      OriginSource   @default(acta) // Nguồn gốc
+
+  // Transfer date - Ngày chuyển kho
+  transferDate DateTime // Ngày chuyển kho
+  receivedDate DateTime // Ngày nhận hàng
+
+  // Note - Ghi chú
+  noteBySource      String? // Ghi chú từ nguồn
+  noteByDestination String? // Ghi chú từ đích
+
+  details TransferDetail[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([kiotVietTransferId])
+  @@index([code])
+  @@index([status])
+  @@index([transferDate])
+  @@index([receivedDate])
+  @@map("transfers")
+}
+
+model TransferDetail {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietTransferDetailId Int? @unique // ID chi tiết đơn chuyển kho từ KiotViet
+
+  transferredQuantity Int // Số lượng chuyển kho
+  price               Decimal      @db.Decimal(15, 2) // Giá
+  totalTransfer       Decimal      @db.Decimal(15, 2) // Tổng tiền chuyển kho
+  totalReceive        Decimal      @db.Decimal(15, 2) // Tổng tiền nhận hàng
+  source              OriginSource @default(acta) // Nguồn gốc
+
+  transferId String
+  transfer   Transfer @relation(fields: [transferId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([transferId])
+  @@index([kiotVietTransferDetailId])
+  @@map("transfer_details")
+}

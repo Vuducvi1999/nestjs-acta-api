@@ -1,0 +1,4 @@
+enum OriginSource {
+  kiotviet // Từ KiotViet
+  acta // Từ ACTA
+}

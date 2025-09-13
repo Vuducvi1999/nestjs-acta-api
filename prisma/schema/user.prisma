@@ -1,0 +1,227 @@
+// Enums
+enum Gender {
+  male
+  female
+  other
+  not_known
+  prefer_not_to_say
+}
+
+enum UserStatus {
+  pending
+  pending_admin
+  pending_kyc
+  kyc_submitted
+  kyc_changing
+  active
+  inactive
+}
+
+enum Role {
+  admin
+  user
+  collaborator
+  moderator
+}
+
+enum KycStatus {
+  pending
+  submitted
+  approved
+  rejected
+}
+
+model User {
+  id String @id @default(uuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietUserId Int? @unique // ID tài khoản từ KiotViet
+
+  email            String       @unique
+  passwordHash     String
+  fullName         String
+  referenceId      String       @unique
+  phoneNumber      String
+  dob              DateTime?    @db.Timestamp(6)
+  gender           Gender       @default(not_known)
+  verificationDate DateTime?    @db.Timestamp(6)
+  country          String
+  role             Role
+  isActive         Boolean      @default(false)
+  bio              String?
+  website          String?
+  status           UserStatus   @default(pending)
+  rejectedReason   String?
+  source           OriginSource @default(acta) // Nguồn gốc
+
+  // Timestamps
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Authentications
+  emailChange       EmailChange?
+  emailVerification EmailVerification?
+  passwordReset     PasswordReset?
+  passwordChangeOtp PasswordChangeOtp?
+  apiKeyOtp         ApiKeyOtp?
+
+  addresses Address[]
+
+  // Profile images
+  avatarId String?     @unique
+  avatar   Attachment? @relation("UserAvatar", fields: [avatarId], references: [id], onDelete: Cascade)
+
+  oldAvatars Attachment[] @relation("UserOldAvatars")
+
+  coverId String?     @unique
+  cover   Attachment? @relation("UserCover", fields: [coverId], references: [id], onDelete: Cascade)
+
+  oldCovers Attachment[] @relation("UserOldCovers")
+
+  // Referrals Section
+  referrerId String?
+  referrer   User?   @relation("UserReferrals", fields: [referrerId], references: [referenceId])
+  referrals  User[]  @relation("UserReferrals")
+
+  ancestors   UserReferralClosure[] @relation("Ancestor")
+  descendants UserReferralClosure[] @relation("Descendant")
+
+  // Social
+  posts        Post[]        @relation("UserPosts")
+  reactions    Reaction[]    @relation("UserReactions")
+  comments     Comment[]     @relation("UserComments")
+  commentLikes CommentLike[] @relation("UserCommentLikes")
+  savedPosts   SavedPost[]   @relation("UserSavedPosts")
+  followers    Follower[]    @relation("UserFollowersFollowing")
+  following    Follower[]    @relation("UserFollowersFollowed")
+
+  userNotifications Notification[] @relation("UserNotifications")
+
+  // Chat related
+  createdConversations    Conversation[]       @relation("CreatedConversations")
+  conversationMemberships ConversationMember[]
+  messagesSent            Message[]            @relation("MessagesSent")
+  seenMessages            Message[]            @relation("SeenMessages")
+  mentionedInMessages     Message[]            @relation("MentionedInMessages")
+
+  // Customer
+  customer Customer? @relation("UserCustomer")
+
+  business          Business?
+  cart              Cart?
+  ratings           Rating[]
+  productReviews    Review[]          @relation("UserProductReviews")
+  productWarranties ProductWarranty[] @relation("UserProductWarranties")
+  wishlistItems     WishlistItem[]    @relation("UserWishlist")
+  purchaseOrders    PurchaseOrder[]   @relation("UserPurchaseOrders")
+  returnOrders      ReturnOrder[]     @relation("UserReturnOrders")
+  cashflows         Cashflow[]        @relation("UserCashflows")
+  priceBooks        PriceBook[]       @relation("UserPriceBooks")
+  orderBusinesses   OrderBusiness[]   @relation("UserOrderBusinesses")
+  voucherCampaigns  VoucherCampaign[] @relation("UserVoucherCampaigns")
+
+  // Affiliate commissions
+  affiliateCommissions AffiliateCommission[]    @relation("UserAffiliateCommissions")
+  paidCommissions      AffiliateCommission[]    @relation("UserPaidCommissions")
+  processedCommissions AffiliateCommissionLog[] @relation("UserProcessedCommissions")
+
+  // New content-related relations
+  newsItems        NewsItem[]
+  newsComments     NewsComment[]
+  newsLikes        NewsLike[]
+  newsCommentLikes NewsCommentLike[]
+
+  // KYC
+  kyc        UserKYC?  @relation("UserKYC")
+  kycReviews UserKYC[] @relation("UserKYCReviewedBy")
+
+  // Documents
+  documents            Document[]             @relation("UserUploads")
+  userDocuments        UserDocument[]         @relation("UserDocuments")
+  documentComments     DocumentComment[]      @relation("UserDocumentComments")
+  documentCommentLikes DocumentCommentLike[]
+  documentProgresses   UserDocumentProgress[] @relation("UserDocumentProgresses")
+
+  // Activity logs
+  activities ActivityLog[] @relation("UserActivities")
+
+  // User configs
+  userConfig UserConfig? @relation("UserConfigs")
+
+  // Tagged posts
+  taggedPosts Post[] @relation("TaggedPosts")
+
+  // Payment related
+  wallet  Wallet?
+  payouts Payout[]
+
+  // Performance indexes for referral queries
+  @@index([referrerId])
+  @@index([referrerId, status])
+  @@index([referrerId, verificationDate])
+  @@index([status, verificationDate])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model UserConfig {
+  id String @id @default(uuid())
+
+  config Json
+
+  userId String @unique
+  user   User   @relation("UserConfigs", fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_configs")
+}
+
+model UserReferralClosure {
+  id    String @id @default(uuid())
+  depth Int // 0 = self, 1 = direct, 2 = indirect, ...
+
+  ancestorId String
+  ancestor   User   @relation("Ancestor", fields: [ancestorId], references: [referenceId])
+
+  descendantId String
+  descendant   User   @relation("Descendant", fields: [descendantId], references: [referenceId])
+
+  @@unique([ancestorId, descendantId])
+  @@index([ancestorId])
+  @@index([descendantId])
+  @@map("user_referral_closures")
+}
+
+model UserKYC {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation("UserKYC", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Personal Information
+  fullName    String
+  dateOfBirth DateTime
+  nationality String
+  address     String
+
+  // KYC Information
+  kycNumber  String
+  kycFileUrl String? // Single file URL
+
+  // Status
+  status  KycStatus @default(pending)
+  message String?
+
+  // Timestamps
+  submittedAt DateTime  @default(now())
+  reviewedAt  DateTime?
+
+  reviewedById String?
+  reviewedBy   User?    @relation("UserKYCReviewedBy", fields: [reviewedById], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("user_kyc")
+}

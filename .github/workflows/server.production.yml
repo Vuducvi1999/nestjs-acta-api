@@ -1,0 +1,202 @@
+name: Production Environment Deployment (Server)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+env:
+  DOCKERHUB_REPO: ${{ secrets.DOCKERHUB_USERNAME }}/api-acta-e-commerce
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_REPO }}:latest
+            ${{ env.DOCKERHUB_REPO }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.DOCKERHUB_REPO }}:buildcache
+          cache-to: type=registry,ref=${{ env.DOCKERHUB_REPO }}:buildcache,mode=min
+          provenance: true
+          sbom: true
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Generate .env.server file
+        run: |
+          cat <<EOF > .env.server
+          NODE_ENV=production
+          APP_PORT=4000
+          APP_NAME=NestJS ACTA E-COMMERCE API
+          APP_FALLBACK_LANGUAGE=vi
+          APP_HEADER_LANGUAGE=x-custom-lang
+          FRONTEND_DOMAIN=${{ secrets.FRONTEND_DOMAIN }}
+          BACKEND_DOMAIN=${{ secrets.BACKEND_DOMAIN }}
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          JWT_REFRESH_SECRET_KEY=${{ secrets.JWT_REFRESH_SECRET_KEY }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          DIRECT_URL=${{ secrets.DIRECT_URL }}
+          RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+          MUX_TOKEN_ID=${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET=${{ secrets.MUX_TOKEN_SECRET }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          KIOTVIET_API_URL=${{ secrets.KIOTVIET_API_URL }}
+          KIOTVIET_CLIENT_ID=${{ secrets.KIOTVIET_CLIENT_ID }}
+          KIOTVIET_CLIENT_SECRET=${{ secrets.KIOTVIET_CLIENT_SECRET }}
+          KIOTVIET_RETAILER_NAME=${{ secrets.KIOTVIET_RETAILER_NAME }}
+          GOONG_API_KEY=${{ secrets.GOONG_API_KEY }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          VNP_TMN_CODE=${{ secrets.VNP_TMN_CODE }}
+          VNP_HASH_SECRET=${{ secrets.VNP_HASH_SECRET }}
+          VNP_RETURN_URL=${{ secrets.VNP_RETURN_URL }}
+          VNP_IPN_URL=${{ secrets.VNP_IPN_URL }}
+          VNP_API_URL=${{ secrets.VNP_API_URL }}
+          DEFAULT_CURRENCY=${{ secrets.DEFAULT_CURRENCY }}
+          DATABASE_MAX_CONNECTIONS=${{ secrets.DATABASE_MAX_CONNECTIONS }}
+          VIETQR_CLIENT_ID=${{ secrets.VIETQR_CLIENT_ID }}
+          VIETQR_API_KEY=${{ secrets.VIETQR_API_KEY }}
+          VIETQR_BANK_BIN=${{ secrets.VIETQR_BANK_BIN }}
+          VIETQR_ACCOUNT_NUMBER=${{ secrets.VIETQR_ACCOUNT_NUMBER }}
+          VIETQR_ACCOUNT_NAME=${{ secrets.VIETQR_ACCOUNT_NAME }}
+          VIETQR_EXPIRES_MINUTES=${{ secrets.VIETQR_EXPIRES_MINUTES }}
+          X_API_KEY=${{ secrets.X_API_KEY }}
+          EOF
+
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Copy .env.server to VPS
+        run: |
+          scp -o StrictHostKeyChecking=no .env.server ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USER }}/.env.server
+
+      - name: Deploy on VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' << 'ENDSSH'
+            set -e
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            docker pull ${{ env.DOCKERHUB_REPO }}:latest
+            docker stop server || true
+            docker rm server || true
+            docker run -d --name server -p 4000:4000 --env-file /home/${{ secrets.VPS_USER }}/.env.server ${{ env.DOCKERHUB_REPO }}:latest
+          ENDSSH
+
+  tag-last-known-good:
+    needs: deploy
+    if: success()
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag and push last-known-good image
+        run: |
+          docker pull ${{ env.DOCKERHUB_REPO }}:${{ github.sha }}
+          docker tag ${{ env.DOCKERHUB_REPO }}:${{ github.sha }} ${{ env.DOCKERHUB_REPO }}:last-known-good
+          docker push ${{ env.DOCKERHUB_REPO }}:last-known-good
+
+  rollback:
+    needs: deploy
+    if: failure()
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Generate .env.server file
+        run: |
+          cat <<EOF > .env.server
+          NODE_ENV=production
+          APP_PORT=4000
+          APP_NAME=NestJS ACTA E-COMMERCE API
+          APP_FALLBACK_LANGUAGE=vi
+          APP_HEADER_LANGUAGE=x-custom-lang
+          FRONTEND_DOMAIN=${{ secrets.FRONTEND_DOMAIN }}
+          BACKEND_DOMAIN=${{ secrets.BACKEND_DOMAIN }}
+          JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          JWT_REFRESH_SECRET_KEY=${{ secrets.JWT_REFRESH_SECRET_KEY }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          DIRECT_URL=${{ secrets.DIRECT_URL }}
+          RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+          CLOUDINARY_CLOUD_NAME=${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY=${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET=${{ secrets.CLOUDINARY_API_SECRET }}
+          MUX_TOKEN_ID=${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET=${{ secrets.MUX_TOKEN_SECRET }}
+          REDIS_URL=${{ secrets.REDIS_URL }}
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          KIOTVIET_API_URL=${{ secrets.KIOTVIET_API_URL }}
+          KIOTVIET_CLIENT_ID=${{ secrets.KIOTVIET_CLIENT_ID }}
+          KIOTVIET_CLIENT_SECRET=${{ secrets.KIOTVIET_CLIENT_SECRET }}
+          KIOTVIET_RETAILER_NAME=${{ secrets.KIOTVIET_RETAILER_NAME }}
+          GOONG_API_KEY=${{ secrets.GOONG_API_KEY }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          VNP_TMN_CODE=${{ secrets.VNP_TMN_CODE }}
+          VNP_HASH_SECRET=${{ secrets.VNP_HASH_SECRET }}
+          VNP_RETURN_URL=${{ secrets.VNP_RETURN_URL }}
+          VNP_IPN_URL=${{ secrets.VNP_IPN_URL }}
+          VNP_API_URL=${{ secrets.VNP_API_URL }}
+          DEFAULT_CURRENCY=${{ secrets.DEFAULT_CURRENCY }}
+          DATABASE_MAX_CONNECTIONS=${{ secrets.DATABASE_MAX_CONNECTIONS }}
+          VIETQR_CLIENT_ID=${{ secrets.VIETQR_CLIENT_ID }}
+          VIETQR_API_KEY=${{ secrets.VIETQR_API_KEY }}
+          VIETQR_BANK_BIN=${{ secrets.VIETQR_BANK_BIN }}
+          VIETQR_ACCOUNT_NUMBER=${{ secrets.VIETQR_ACCOUNT_NUMBER }}
+          VIETQR_ACCOUNT_NAME=${{ secrets.VIETQR_ACCOUNT_NAME }}
+          VIETQR_EXPIRES_MINUTES=${{ secrets.VIETQR_EXPIRES_MINUTES }}
+          X_API_KEY=${{ secrets.X_API_KEY }}
+          EOF
+
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Copy .env.server to VPS
+        run: |
+          scp -o StrictHostKeyChecking=no .env.server ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/home/${{ secrets.VPS_USER }}/.env.server
+
+      - name: Rollback to last-known-good image
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} 'bash -s' << 'ENDSSH'
+            set -e
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            docker pull ${{ env.DOCKERHUB_REPO }}:last-known-good
+            docker stop server || true
+            docker rm server || true
+            docker run -d --name server -p 4000:4000 --env-file /home/${{ secrets.VPS_USER }}/.env.server ${{ env.DOCKERHUB_REPO }}:last-known-good
+          ENDSSH

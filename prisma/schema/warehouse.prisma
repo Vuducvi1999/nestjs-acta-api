@@ -1,0 +1,35 @@
+model Warehouse {
+  id String @id @default(cuid())
+
+  // KiotViet integration - Tích hợp KiotViet
+  kiotVietWarehouseId Int? @unique // ID kho hàng từ KiotViet
+
+  // Thông tin kho hàng
+  name     String // Tên kho hàng
+  email    String? // Email
+  isActive Boolean      @default(true) // Trạng thái hoạt động
+  source   OriginSource @default(acta) // Nguồn gốc
+
+  // Địa chỉ
+  addressId String?  @unique
+  address   Address?
+
+  productInventories  ProductInventory[]
+  productShelves      ProductShelf[]
+  productBatchExpires ProductBatchExpire[]
+  orders              Order[]
+  invoices            Invoice[]
+  purchaseOrders      PurchaseOrder[]
+  returnOrders        ReturnOrder[]
+  cashflows           Cashflow[]
+  priceBooks          PriceBook[]
+  orderBusinesses     OrderBusiness[]
+  voucherCampaigns    VoucherCampaign[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([id, name])
+  @@index([kiotVietWarehouseId])
+  @@map("warehouses")
+}

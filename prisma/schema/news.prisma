@@ -1,0 +1,80 @@
+model NewsItem {
+  id           String        @id @default(uuid())
+  title        String
+  summary      String
+  content      String
+  category     NewsCategory
+  slug         String?
+  duration     String?
+  level        String?
+  views        Int           @default(0)
+  rating       Float         @default(0)
+  location     String?
+  date         DateTime?
+  isPublished  Boolean       @default(true)
+  commentCount Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deletedAt    DateTime?
+  authorId     String
+  imageUrls    String[]      @default([]) // URLs of images associated with the news
+  videoUrls    String[]      @default([]) // URLs of videos associated with the news
+  comments     NewsComment[]
+  author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes        NewsLike[]
+  muxData      MuxData[]     @relation("NewsMuxData")
+
+  @@index([category])
+  @@index([authorId])
+  @@map("news_items")
+}
+
+model NewsComment {
+  id         String            @id @default(uuid())
+  content    String
+  newsItemId String
+  userId     String
+  parentId   String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  newsItem   NewsItem          @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
+  parent     NewsComment?      @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    NewsComment[]     @relation("CommentReplies")
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes      NewsCommentLike[]
+
+  @@index([newsItemId])
+  @@map("news_comments")
+}
+
+model NewsLike {
+  id         String   @id @default(uuid())
+  newsItemId String
+  userId     String
+  createdAt  DateTime @default(now())
+  newsItem   NewsItem @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([newsItemId, userId])
+  @@map("news_likes")
+}
+
+model NewsCommentLike {
+  id        String      @id @default(uuid())
+  commentId String
+  userId    String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  comment   NewsComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@map("news_comment_likes")
+}
+
+enum NewsCategory {
+  all
+  event
+  news
+  announcement
+}

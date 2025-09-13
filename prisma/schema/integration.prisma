@@ -1,0 +1,78 @@
+model SystemConfig {
+  id String @id @default(uuid())
+
+  kiotvietConfigId String?
+  kiotvietConfig   KiotVietConfig?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_configs")
+}
+
+model KiotVietConfig {
+  id String @id @default(uuid())
+
+  apiKey   String  @unique
+  isActive Boolean @default(false)
+
+  fieldMappings Json?
+  syncSettings  Json?
+
+  systemConfigId String       @unique
+  systemConfig   SystemConfig @relation(fields: [systemConfigId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("kiotviet_configs")
+}
+
+enum SyncDirection {
+  KIOTVIET_TO_ACTA
+  ACTA_TO_KIOTVIET
+}
+
+enum SyncEntityType {
+  PRODUCT
+  CATEGORY
+  WAREHOUSE
+  BUSINESS
+  USER
+}
+
+enum SyncStatus {
+  SUCCESS
+  FAILED
+  PARTIAL
+  PENDING
+}
+
+model SyncLog {
+  id String @id @default(uuid())
+
+  direction SyncDirection
+  status    SyncStatus
+
+  entityType SyncEntityType
+  entityId   String? // May be null if failed
+
+  details Json? // total records, success count, failed count, error details
+
+  startTime DateTime
+  endTime   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sync_logs")
+}
+
+model ApiKeyOtp {
+  token      String   @id @db.Char(6) // 6-digit OTP
+  userId     String   @unique
+  validUntil DateTime @db.Timestamp(6)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_key_otps")
+}
